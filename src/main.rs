@@ -27,13 +27,23 @@ fn main() {
 
     //let x = &var("aa").unwrap();
 
+    /*
+    复习点：
+    不可变 和 可变[mut]
+    数据传递[赋值，函数参数] 涉及 Copy[不可变引用，函数指针...] 和 Move[可变引用，String，Vec...]
+    Copy，两个都完全不相关了
+    Move，一个丧失了对数据的控制权，另一个则获得了控制权，
+    所以为了编程方便，引入引用的概念，引用不涉及所有权的转移
+    切片是引用的一种，不涉及所有权的转移
+     */
+
     //test_base();
-    test_tuple();
+    //test_tuple();
     //test_ref();
     //test_str();
     //test_slice();
     //test_ary();
-    //test_match();
+    test_match();
     //test_enum();
     //test_struct();
     //test_trait();
@@ -46,6 +56,8 @@ fn main() {
     //test_libra();
 
     //test_drop();
+
+    //test_tmp();
 }
 
 
@@ -177,17 +189,21 @@ fn test_base() {
         //重新定义了s，此时s与s1互不相关了
         let s = String::from("new heap");
         println!("{},{}", s,s1);
-
-        fn test_heap(str: String) {
+        fn test_heap(str: &String) {
             println!("{}", str);
         }
-        test_heap(s);  //此处也不是参数变量的值拷贝了，是Move，是所有权发生了转移，转移到了test_heap函数的变量中，s被丢弃了将无法使用，除非重新定义s或者返回出来
+        test_heap(&s);
+
+        fn test_heap1(str: String) {
+            println!("{}", str);
+        }
+        test_heap1(s);  //此处也不是参数变量的值拷贝了，是Move，是所有权发生了转移，转移到了test_heap函数的变量中，s被丢弃了将无法使用，除非重新定义s或者返回出来
         //println!("{}",s);     //Error，s已经被丢弃了，丧失了对"new heap"的所有权
 
         /*
             总结：
             因为栈上的变量Copy速度很快，所以就各自拥有各自的所有权，不会有所有权的转移
-            堆上的变量的操作速度相对慢很多，体量又有可能很大，因此不拷贝，所以就有了所有权的转移。所有权的转移也是体现了Rust语言的安全性
+            堆上的变量的操作速度相对慢很多，体量又有可能很大，因此不拷贝，所以就有了所有权的转移[除非使用引用，后面会讲到]。所有权的转移也是体现了Rust语言的安全性
         */
     }
 }
@@ -205,6 +221,7 @@ fn test_tuple() {
     }
 
     {
+        //Rust 的所有权系统在处理复合类型时的一致性
         let x = (12i8, 7.88, true);
         let y = x;   //由于此元组元素是基本类型存储在栈上，所以是全量Copy，没有所有权的转移, 相当于新建了个副本互不干扰
 
@@ -319,6 +336,9 @@ fn test_ref() {
 
 //字符串
 fn test_str() {
+    //`str` 是一个动态大小类型（DST），不能直接使用，总是通过引用（`&str`）使用。
+    //`&str` 是不可变的。如果需要可变字符串，应使用 `String`。
+    //理解和正确使用 `str` 和 `&str` 对于编写高效的 Rust 代码非常重要。它们提供了一种内存安全且高效的方式来处理字符串数据。
     let s = String::from("Libra");
     s.len();
     s.capacity();
@@ -345,6 +365,10 @@ fn test_str() {
     let i1 = 5;
     let com_str = format!("{}--{}--{}", f1, i1, "zz");     //这种组合构造方式不错哦
 
+    fn create_greeting(name: &str) -> String {
+        format!("Hello, {}!", name)
+    }
+
     //如果只想要一个字符串的只读视图，那就首选&str。如果想拥有所有权，想修改字符串那就用String吧。
     let tt: &str;
     fn normal(s: &str) {}   //参数多数喜欢使用&str而不是&String
@@ -352,14 +376,14 @@ fn test_str() {
 
 //切片
 fn test_slice() {
-    //切片是一种特殊的引用,允许引用集合类型的部分元素,由于是引用所以没有（所有权）的概念,但是还是有（可不可变）的概念的
+    //切片是一种特殊的引用,允许引用集合类型的部分元素,由于是引用所以没有（所有权Move）的概念,但是还是有（可不可变）的概念的
     //String Slice
     {
         let s = String::from("hello rust");
         let s0 = "hello rust";      //字符串字面常量其实也是个引用
-        let s1 = &s[0..5];
-        let s2 = &s[..3];
-        let s3 = &s[..=3];
+        let s1 = &s[0..5];          //[0-5)
+        let s2 = &s[..3];           //[0-3)
+        let s3 = &s[..=3];          //[0-3]
         let s4 = &s[3..s.len()];
         let s5 = &s[3..];
         //let s5 = s0[3..];     //Error,写法错误
@@ -372,10 +396,12 @@ fn test_slice() {
         let s7 = s + &s6 + s0 + " end";   //此处编译器会将&String类型强制转换成&str，同时s的所有权Move了
         //println!("{}",s);         //Error,s被丢弃了
         println!("{}", s7);
+
     }
 
     //Array Slice
     {
+        //DST 动态大小类型
         let ary = [12, 13, 14, 15, 16, 17];
         let ary1 = &ary[2..5];
     }
@@ -389,7 +415,7 @@ fn test_ary() {
         2.希望数据分配在栈上而不是堆上时(以下有数组元素在堆上的例子)
     */
     {
-        //数组类型必须一致,且它们的大小在编译时会被确定
+        //数组类型必须一致,且它们的大小在编译时会被确定,没有办法增加和减少元素
         //一维数组
         let ary = [12, 13, 14];
         let ary: [f64; 5] = [23.4, 45.6, 78.5, 34.5, 12.3];
@@ -398,6 +424,9 @@ fn test_ary() {
         //let a = ary[10];    //Error,超出索引范围
         let ary1 = ary; //Copy
         println!("{:?}", ary);
+        //与 {} 不同，{:?} 不要求类型实现 std::fmt::Display trait
+        //{:#?} 是 {:?} 的一个变体，它提供了更易读的多行输出格式
+
 
         //二维数组
         let ary: [[i32; 3]; 2] = [[5; 3]; 2];
@@ -457,11 +486,11 @@ fn test_match() {
         4 => println!("four"),
         5 => println!("five"),
         z => println!("something else {}",z),
-    }   //此处可以被_,5,z捕获，先来先到；_,z都代表其他，确保穷尽（一个则没有关联，一个关联参数）
+    }   //此处理论上可以被_,5,z捕获，但是先来先到，所以被_捕获了
 
     //if let 相当于其中一个match的简略形式
     if let 5 = x {
-        println!("five");
+        println!("five!");
     }else{
         println!("something else");
     }
@@ -487,6 +516,26 @@ fn test_match() {
 
 //枚举
 fn test_enum() {
+    #[derive(Debug,Copy,Clone)]
+    enum PokerSuit {
+        Clubs,
+        Spades,
+        Diamonds,
+        Hearts,
+    }
+    let clubs = PokerSuit::Clubs;
+    let x = clubs;  //此处是Copy
+    let hearts = PokerSuit::Hearts;
+    let diamonds = PokerSuit::Diamonds;
+    let spades = PokerSuit::Spades;
+
+    println!("{:?}-{}", clubs,clubs as i32);
+    println!("{:?}-{}", hearts,hearts as i32);
+    println!("{:?}-{}", diamonds,diamonds as i32);
+    println!("{:?}-{}", spades,spades as i32);
+
+
+
     #[derive(Debug)]
     enum MyLanguage {
         Java(i32),
@@ -496,6 +545,21 @@ fn test_enum() {
         //元组
         Julia { version: i32, name: String }, //匿名元组结构体
     }
+    let la1 = MyLanguage::Java(1);
+    let x = la1;    //此处la1的所有权Move给了x
+    let la2 = MyLanguage::Java(2);
+    let la3 = MyLanguage::Rust(1);
+    let la4 = MyLanguage::Python;
+    let la5 = MyLanguage::C(1,"C".to_string());
+    let la6 = MyLanguage::Julia{version:1,name:"Julia".to_string()};
+    println!("{:?}",x);
+    println!("{:?}",la2);
+    println!("{:?}",la3);
+    println!("{:?}",la4);
+    println!("{:?}",la5);
+    println!("{:?}",la6);
+
+
 
     impl MyLanguage{
         fn findLanguage(&self){
@@ -526,10 +590,16 @@ fn test_struct() {
         x: i32,
         y: i32,
         z: f32
-    }   //不支持字段可变性
+    }   //Rust 不支持将某个结构体某个字段标记为可变
+
+    //初始化实例时，每个字段都需要进行初始化
+    //初始化时的字段顺序不需要和结构体定义时的顺序一致
+
+    //要可变只能这样
+    let mut _p = Point{x :0, y :23, z :0.32};
 
     let p = Point{x :0, z :0.32, y :23};
-    let p = Point{z :0.46, ..p};
+    let p1 = Point{z :0.46, ..p};    //其他都一样
 
     let x = 1;
     let y = 2;
@@ -563,7 +633,7 @@ fn test_struct() {
     let Point2(_, z) = p;
 
 
-    #[derive(Debug)]
+    #[derive(Debug)]  //这样才能使用 println!("{:?}",user)
     struct User {
         name: String,
         age: i32,
@@ -904,3 +974,38 @@ fn test_assert_approx_eq(x: f64, y: f64, diff: Option<f64>) {
 }
 
 fn test_assert_match() {}
+
+
+//---------------------------------tmp_test-------------------------------
+fn test_tmp() {
+    {
+        let mut arry = [1,2,3,4,5];
+        let a1= &mut arry[1..3];
+        a1[0] = 10;
+        println!("{:?}",arry);
+    }
+
+    {
+        struct File {
+            name: String,
+            data: Vec<u8>,
+        }
+        let mut f1 = File {
+            name: String::from("f1.txt"),
+            data: Vec::new(),
+        };
+
+        let f1_length = &f1.data.len();
+        let y = f1.data.len();
+
+        println!("初始长度: f1_length = {}, y = {}", f1_length, y);
+
+        f1.data.push(1);
+        f1.data.push(2);
+
+        println!("修改后: f1_length = {}, y = {}", f1_length, y);
+        println!("实际长度: {}", f1.data.len());
+    }
+
+
+}
