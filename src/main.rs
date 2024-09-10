@@ -4,6 +4,12 @@ use std::io::ErrorKind;
 use std::num::FpCategory;
 use std::ops::Add;
 
+use std::thread::sleep;
+use std::time::Duration;
+
+//-----------Oracle start------------
+use oracle::{Connection,Error,Result,Version};
+//-----------Oracle   end------------
 
 //-----------Libra start------------
 #[macro_use]
@@ -43,7 +49,7 @@ fn main() {
     //test_str();
     //test_slice();
     //test_ary();
-    test_match();
+    //test_match();
     //test_enum();
     //test_struct();
     //test_trait();
@@ -56,7 +62,7 @@ fn main() {
     //test_libra();
 
     //test_drop();
-
+    //test_oracle();
     //test_tmp();
 }
 
@@ -189,13 +195,13 @@ fn test_base() {
         //重新定义了s，此时s与s1互不相关了
         let s = String::from("new heap");
         println!("{},{}", s,s1);
-        fn test_heap(str: &String) {
-            println!("{}", str);
+        fn test_heap(s: &String) {
+            println!("{}", s);
         }
         test_heap(&s);
 
-        fn test_heap1(str: String) {
-            println!("{}", str);
+        fn test_heap1(s: String) {
+            println!("{}", s);
         }
         test_heap1(s);  //此处也不是参数变量的值拷贝了，是Move，是所有权发生了转移，转移到了test_heap函数的变量中，s被丢弃了将无法使用，除非重新定义s或者返回出来
         //println!("{}",s);     //Error，s已经被丢弃了，丧失了对"new heap"的所有权
@@ -264,8 +270,9 @@ fn test_ref() {
         //基础类型（在栈上赋值很快，一般不用引用）
         let mut x = 5;
         let y = &mut x;
-        *y = 7;
-        println!("{}", x);
+        let z = y;
+        //*y = 7;   //Error，y的所有权已经转移给z了，y已经失效了
+        println!("{}", *z);
 
         let x = 32;
         let y = &x;
@@ -286,7 +293,8 @@ fn test_ref() {
     {
         let mut x = String::from("ref");
         let mut z = String::from("newRef");
-        let x1 = &x;
+        let _x1 = &x;
+        x.push_str("Str");
         {
             //由于有下面可变引用y的存在
             //所以，只有此范围可以对x1进行只读操作
@@ -438,6 +446,9 @@ fn test_ary() {
         //let ary = [String::from("Etc"); 5];   //Error,元素没有Copy的特性
         let ary1 = ary; //Move
         //println!("{:?}", ary);    //Error,所有权转移了
+
+        let array: [String; 8] = std::array::from_fn(|_i| String::from("rust is good!"));
+        println!("{:#?}", array);
     }
 
     {
@@ -475,7 +486,8 @@ fn test_ary() {
 //匹配
 fn test_match() {
     //匹配--可以让你有效的取代复杂的if/else组
-    //强制穷尽性检查
+    //强制穷尽性检查或者使用_通配符或者使用一个变量来承载其他情况比如这里的z
+    //当你只关心一种情况时，可以使用 if let 替代 match
     let x = 5;
 
     match x {
@@ -486,7 +498,7 @@ fn test_match() {
         4 => println!("four"),
         5 => println!("five"),
         z => println!("something else {}",z),
-    }   //此处理论上可以被_,5,z捕获，但是先来先到，所以被_捕获了
+    }   //此处理论上可以被_,5,z捕获，但是先来先到，所以被_通配符捕获了
 
     //if let 相当于其中一个match的简略形式
     if let 5 = x {
@@ -512,6 +524,8 @@ fn test_match() {
             other_err => println!("open fail {:#?}", other_err),
         },
     }
+
+    //matches!宏--研究一下
 }
 
 //枚举
@@ -660,6 +674,7 @@ fn test_struct() {
             self.name = new_name;
         }
 
+        //等价于fn isLarger(&self, other : &User) -> bool
         fn isLarger(&self , other : &Self) -> bool{
             self.age > other.age    //此处不能有分号，有分号就不是返回语句了
         }
@@ -672,6 +687,7 @@ fn test_struct() {
 
     let mut user = User { name: String::from("shilf"), age: 41 };
     let mut user = User::new(String::from("shilf"), 32);
+    let mut user = User::new1(String::from("shilf"), 32);
     let user1 = User { name: String::from("shily"), ..user };      //此处只是做了一次复制，没有任何关联关系
     user.change_user_name(String::from("shilp"));
     user.name.push_str("--yx");
@@ -714,13 +730,14 @@ fn test_generic() {
         y : T,
         z : T
     }
+    let p1 = Point { x: 1, y: 2, z: 3 }; 
 
     struct Point1<T = i32>{
         x : T,
         y : T,
         z : T
     }
-    let p = Point1{x: 2, y: 3, z: 4};
+    let p1 = Point1{x: 2, y: 3, z: 4};
 
     //方法定义中的泛型
     impl<T> Point<T> {
@@ -976,6 +993,24 @@ fn test_assert_approx_eq(x: f64, y: f64, diff: Option<f64>) {
 fn test_assert_match() {}
 
 
+
+//---------------------------------Oracle start-------------------------------
+fn test_oracle() {
+    //把instantclient_11_2文件夹配置到系统环境变量中，确保是64位就可以了
+    let conn = Connection::connect("system", "oracle", "10.101.10.41:1521/spdb").unwrap();
+
+    let client_ver = Version::client().unwrap();
+    println!("Oracle Client Version: {}", client_ver);
+
+    let (server_ver, banner) = conn.server_version().unwrap();
+    println!("Oracle Server Version: {}", server_ver);
+    println!("--- Server Version Banner ---");
+    println!("{}", banner);
+}
+
+
+
+
 //---------------------------------tmp_test-------------------------------
 fn test_tmp() {
     {
@@ -1006,6 +1041,5 @@ fn test_tmp() {
         println!("修改后: f1_length = {}, y = {}", f1_length, y);
         println!("实际长度: {}", f1.data.len());
     }
-
 
 }
