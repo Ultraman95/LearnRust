@@ -28,8 +28,8 @@ fn main() {
     //let x = &var("aa").unwrap();
 
     //test_base();
-    test_tuple();
-    //test_ref();
+    //test_tuple();
+    test_ref();
     //test_str();
     //test_slice();
     //test_ary();
@@ -89,6 +89,10 @@ fn test_base() {
         //一次为多个变量进行赋值，猜一猜他们各自是什么类型
         let (n, f, b, u, c) = (34u32, 2.4, true, b'k', '😻');
         println!("{},{},{},{},{}", n, f, b, u, c);     //println!不是一个函数，是一个宏
+
+
+        // 类型转换必须是显式的，Rust不会自动转换
+        // 只有同样类型，才能运算
     }
 
     /*-------------------------------------------------------------------------------------------------------*/
@@ -103,12 +107,14 @@ fn test_base() {
         let x;
         x = 3;  //此处是初始化，不是修改
 
-        //以下是x变量遮蔽，内存空间完全不同
+        //以下是x变量遮蔽，内存空间完全不同，类型也可以不同
         let x = 5;  //x为默认不可变变量
         //x = 6;    //Error，因为x是不可变的，也就是说x无论在哪儿都是只读的，只能使用无法修改。除非重新定义x  （Rust语言的安全性开始体现了）
         let x = false;
         //x = true; //Error，一样是不可变原理
 
+        let mut x;
+        x = 5i32;
 
         let mut x = 5;  //mut关键字，x重新定义为可变变量，可变变量可以修改值，但类型必须一致，除非重新定义x
         x = 34;
@@ -116,7 +122,7 @@ fn test_base() {
         //x = 34u64;    //Error，类型不一致 , 基本类型通过as转换
         //x = 'c';      //Error，类型不一致
 
-        let mut x = 'c';
+        let mut x: char = 'c';
         x = 'u';
         //x = b'u';     //Error，类型不一致
 
@@ -202,6 +208,10 @@ fn test_tuple() {
         println!("{},{},{},{},{}", a, b, c, x.0, x.1);
         //println!("{}",x.2);   //Error，变量x.2已经Move了
         //println!("{:?}",x);   //Error，变量x由于已经被部分Move了，所以也无法再单独使用了
+
+        let x = (12i8, 7.88, String::from("tuple"));
+        let y = x;
+        //println!("{},{}", x.0, x.1);  //Error，变量x已经Move了
     }
 
     {
@@ -210,7 +220,7 @@ fn test_tuple() {
 
         let x = (12i8, 7.88, String::from("new tuple"));
         let y = x;  //此时由于有堆上数据，所以变量x已经被完全Move了，但是其中的基本类型并没有复制
-        //println!("{},{}", x.0, x.1);  //Error，想一想
+        //println!("{},{}", x.0, x.1);  //Error，想一想 [整体赋值，所有权发生了完全的转移]
     }
 
     {
@@ -241,10 +251,10 @@ fn test_tuple() {
     }
 }
 
-//引用---避免所有权的转移
+//引用---避免所有权的转移[要尊重原数据]--借用行为
 fn test_ref() {
     {
-        //基础类型（在栈上赋值很快，一般不用引用）
+        //基础类型（在栈上赋值很快，一般不用引用）[可以有多个不可变引用（&T）或一个可变引用（&mut T），但这两种引用不能同时存在。]
         let mut x = 5;
         let y = &mut x;
         *y = 7;
@@ -254,6 +264,7 @@ fn test_ref() {
         let y = &x;
         println!("{:p},{:p}", &x, y);
         println!("{},{}", x, y);
+
 
         //引用不涉及到所有权的Move
         let x = String::from("Str");
@@ -265,6 +276,7 @@ fn test_ref() {
         println!("{:p},{:p}", &x, y);
         println!("{},{}", x, y);
     }
+
 
     {
         let mut x = String::from("ref");
@@ -284,6 +296,7 @@ fn test_ref() {
         //y = &mut z;   //Error
         y.push_str("aa");
         println!("{}", x);
+        x.push_str("bb");
         //println!("{}", y);    //Error，可变引用的使用在不可变引用的使用之后，这是不行的
         let mut y = &mut x;
         y.push_str("bb");
@@ -377,6 +390,7 @@ fn test_slice() {
     //Array Slice
     {
         let ary = [12, 13, 14, 15, 16, 17];
+
         let ary1 = &ary[2..5];
     }
 }
@@ -405,7 +419,7 @@ fn test_ary() {
     }
 
     {
-        let ary = [String::from("Btc"), String::from("Eos"), String::from("Libra")];
+        let ary = [String::from("Boo"), String::from("Eoo"), String::from("Libra")];
         //let ary = [String::from("Etc"); 5];   //Error,元素没有Copy的特性
         let ary1 = ary; //Move
         //println!("{:?}", ary);    //Error,所有权转移了
@@ -417,7 +431,7 @@ fn test_ary() {
     }
 
     {
-        let ary = [String::from("Btc"), String::from("Eos"), String::from("Libra"), String::from("Etc")];
+        let ary = [String::from("Boo"), String::from("Eoo"), String::from("Libra"), String::from("Etc")];
         let ary1 = &ary[1..3];
         fn test_ref(ary: &[String]) {
             return;
@@ -433,7 +447,7 @@ fn test_ary() {
         test(ary);  //Move
         //test_ref_len(&ary);  //Error,无法匹配
         //test_ref_len(ary1);  //Error,无法匹配
-        let ary = [String::from("Btc"), String::from("Eos")];
+        let ary = [String::from("Boo"), String::from("Eoo")];
         test_ref_len(&ary);
     }
 
